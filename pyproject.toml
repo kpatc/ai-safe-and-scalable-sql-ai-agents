@@ -1,0 +1,218 @@
+[project]
+name = "sql-ai-agent"
+version = "0.1.0"
+description = "Build with AI: Safe and Scalable SQL AI Agents"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Josue KPATCHA" }
+]
+keywords = ["sql", "ai", "agent", "llm", "database", "openai", "anthropic", "gemini"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.31.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy>=2.0.35",
+    "pandas>=2.3.3",
+    "numpy>=2.3.4",
+    "plotly>=6.2.0",
+    "plotly-express>=0.4.1",
+    "streamlit>=1.53.0",
+    "ipywidgets>=8.1.7",
+    "jupyter>=1.1.1",
+    "duckdb>=1.4.2",
+    "psycopg>=3.2.12",
+    "ibis-framework[postgres]>=11.0.0",
+    "ibis-framework[duckdb]>=11.0.0",
+    "openai>=2.6.1",
+    "langchain>=1.0.2",
+    "langchain-community>=0.4",
+    "langchain-core>=1.0.1",
+    "langchain-openai>=1.0.1",
+    "sqlglot>=28.5.0",
+    "PyYAML>=6.0.2",
+    "httpx>=0.28.0",
+    "nemoguardrails>=0.24.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=23.0.0",
+    "ruff>=0.12.0",
+    "mypy>=1.5.0",
+    "ipython>=8.12.0",
+    "types-PyYAML>=6.0.12.20240917",
+]
+
+anthropic = [
+    "anthropic>=0.25.0",
+]
+
+google = [
+    "google-generativeai>=0.3.0",
+]
+
+all = [
+    "sql-ai-agent[dev,anthropic,google]",
+]
+
+[project.urls]
+Homepage = "https://github.com/kpatc/ai-safe-and-scalable-sql-ai-agents"
+Repository = "https://github.com/kpatc/ai-safe-and-scalable-sql-ai-agents"
+Issues = "https://github.com/kpatc/ai-safe-and-scalable-sql-ai-agents"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=23.0.0",
+    "ruff>=0.12.0",
+    "mypy>=1.5.0",
+    "ipython>=8.12.0",
+    "types-PyYAML>=6.0.12.20240917",
+]
+
+[tool.uv.sources]
+# Specify any custom package sources if needed
+# Example:
+# my-package = { git = "https://github.com/user/repo.git" }
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long
+    "B008",  # function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sql_ai_agent"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.eggs
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.pyright]
+typeCheckingMode = "basic"
+venvPath = "."
+venv = ".venv"
+extraPaths = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=sql_ai_agent",
+    "--cov-report=term-missing",
+]
+markers = [
+    "integration: marks tests as integration tests (select with -m integration)",
+    "llm: marks tests that call a real LLM (excluded from CI, run with -m llm)",
+    "regression: marks golden-dataset regression tests",
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+follow_imports = "normal"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pandas.*",
+    "numpy.*",
+    "langchain_core.*",
+    "langchain_openai.*",
+    "openai.*",
+    "sqlglot.*",
+]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["sql_ai_agent"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[project.scripts]
+sql-agent-build-db = "sql_ai_agent.cli.build_db:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sql_ai_agent"]

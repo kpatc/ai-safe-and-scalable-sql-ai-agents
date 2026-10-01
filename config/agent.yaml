@@ -1,0 +1,19 @@
+database:
+  url: sqlite+pysqlite:///./data/boutique.db
+  max_rows: 1000
+  timeout_seconds: 30
+
+llm:
+  provider: openai
+  model: gpt-4o-mini
+  fallback_model: gpt-4o-mini
+
+agent:
+  max_repairs: 2
+  allowed_tables:
+    - clients
+    - commandes
+    - lignes_commande
+    - produits
+    - categories
+    - avis

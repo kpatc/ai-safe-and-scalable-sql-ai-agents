@@ -1,0 +1,180 @@
+# Golden dataset for regression tests.
+# These SQL queries must continue to execute correctly as the schema evolves.
+# Tests run WITHOUT a real LLM — they validate that reference SQL still works.
+
+- id: "g001"
+  question: "Quels sont les 5 produits les plus chers ?"
+  reference_sql: >
+    SELECT nom, prix_unitaire FROM produits
+    ORDER BY prix_unitaire DESC LIMIT 5
+  expected_columns: ["nom", "prix_unitaire"]
+  expected_min_rows: 5
+  expected_max_rows: 5
+  answerable: true
+
+- id: "g002"
+  question: "Combien de commandes ont été livrées ?"
+  reference_sql: >
+    SELECT COUNT(*) AS livrees FROM commandes WHERE statut = 'livree'
+  expected_columns: ["livrees"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g003"
+  question: "Quelles sont les différentes catégories de produits ?"
+  reference_sql: >
+    SELECT nom FROM categories ORDER BY nom
+  expected_columns: ["nom"]
+  expected_min_rows: 1
+  answerable: true
+
+- id: "g004"
+  question: "Quel est le chiffre d'affaires total des commandes livrées ?"
+  reference_sql: >
+    SELECT ROUND(SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)), 2) AS ca_total
+    FROM lignes_commande lc
+    JOIN commandes c ON lc.commande_id = c.commande_id
+    WHERE c.statut IN ('livree', 'expediee')
+  expected_columns: ["ca_total"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g005"
+  question: "Quels sont les 5 produits les plus vendus en quantité ?"
+  reference_sql: >
+    SELECT p.nom, SUM(lc.quantite) AS quantite_totale
+    FROM produits p
+    JOIN lignes_commande lc ON lc.produit_id = p.produit_id
+    GROUP BY p.produit_id, p.nom
+    ORDER BY quantite_totale DESC
+    LIMIT 5
+  expected_columns: ["nom", "quantite_totale"]
+  expected_min_rows: 1
+  expected_max_rows: 5
+  answerable: true
+
+- id: "g006"
+  question: "Quelle est la note moyenne des avis par catégorie ?"
+  reference_sql: >
+    SELECT cat.nom AS categorie, AVG(a.note) AS note_moyenne
+    FROM avis a
+    JOIN produits p ON a.produit_id = p.produit_id
+    JOIN categories cat ON p.categorie_id = cat.categorie_id
+    GROUP BY cat.categorie_id, cat.nom
+    ORDER BY note_moyenne DESC
+  expected_columns: ["categorie", "note_moyenne"]
+  expected_min_rows: 1
+  answerable: true
+
+- id: "g007"
+  question: "Répartition des commandes par mode de paiement ?"
+  reference_sql: >
+    SELECT mode_paiement, COUNT(*) AS nb_commandes
+    FROM commandes
+    GROUP BY mode_paiement
+    ORDER BY nb_commandes DESC
+  expected_columns: ["mode_paiement", "nb_commandes"]
+  expected_min_rows: 1
+  answerable: true
+
+- id: "g008"
+  question: "Combien de produits sont en rupture de stock ?"
+  reference_sql: >
+    SELECT COUNT(*) AS ruptures FROM produits WHERE stock = 0
+  expected_columns: ["ruptures"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g009"
+  question: "Combien de clients par ville ?"
+  reference_sql: >
+    SELECT ville, COUNT(*) AS nb_clients
+    FROM clients
+    WHERE ville IS NOT NULL
+    GROUP BY ville
+    ORDER BY nb_clients DESC
+    LIMIT 10
+  expected_columns: ["ville", "nb_clients"]
+  expected_min_rows: 1
+  answerable: true
+
+- id: "g010"
+  question: "Quel est le taux d'annulation des commandes ?"
+  reference_sql: >
+    SELECT ROUND(
+      100.0 * SUM(CASE WHEN statut = 'annulee' THEN 1 ELSE 0 END) / COUNT(*),
+      2
+    ) AS taux_annulation
+    FROM commandes
+  expected_columns: ["taux_annulation"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g011"
+  question: "Quelle catégorie génère le plus de chiffre d'affaires ?"
+  reference_sql: >
+    SELECT cat.nom AS categorie,
+           ROUND(SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)), 2) AS ca
+    FROM categories cat
+    JOIN produits p ON p.categorie_id = cat.categorie_id
+    JOIN lignes_commande lc ON lc.produit_id = p.produit_id
+    JOIN commandes c ON lc.commande_id = c.commande_id
+    WHERE c.statut IN ('livree', 'expediee')
+    GROUP BY cat.categorie_id, cat.nom
+    ORDER BY ca DESC
+    LIMIT 1
+  expected_columns: ["categorie", "ca"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g012"
+  question: "Combien de produits différents ont été commandés ?"
+  reference_sql: >
+    SELECT COUNT(DISTINCT produit_id) AS nb_produits_distincts
+    FROM lignes_commande
+  expected_columns: ["nb_produits_distincts"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g013"
+  question: "Quel est le panier moyen des commandes livrées ?"
+  reference_sql: >
+    SELECT ROUND(AVG(total), 2) AS panier_moyen FROM (
+      SELECT c.commande_id, SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)) AS total
+      FROM commandes c
+      JOIN lignes_commande lc ON lc.commande_id = c.commande_id
+      WHERE c.statut IN ('livree', 'expediee')
+      GROUP BY c.commande_id
+    )
+  expected_columns: ["panier_moyen"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g014"
+  question: "Quel est le nombre moyen de produits par commande ?"
+  reference_sql: >
+    SELECT ROUND(AVG(nb_produits), 2) AS moyenne_produits FROM (
+      SELECT commande_id, COUNT(*) AS nb_produits
+      FROM lignes_commande
+      GROUP BY commande_id
+    )
+  expected_columns: ["moyenne_produits"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true
+
+- id: "g015"
+  question: "Quelle est la valeur totale du stock actuel ?"
+  reference_sql: >
+    SELECT ROUND(SUM(stock * prix_unitaire), 2) AS valeur_stock FROM produits
+  expected_columns: ["valeur_stock"]
+  expected_min_rows: 1
+  expected_max_rows: 1
+  answerable: true

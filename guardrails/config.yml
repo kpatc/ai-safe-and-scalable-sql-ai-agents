@@ -1,0 +1,11 @@
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+colang_version: "1.0"
+
+rails:
+  input:
+    flows:
+      - self check input

@@ -1,0 +1,66 @@
+name: sql-ai-agent
+
+x-build: &build
+  context: .
+  dockerfile: docker/Dockerfile
+  target: runtime
+
+services:
+  # Tâche one-shot : construit boutique.db à partir des CSV, puis s'arrête.
+  db-init:
+    build: *build
+    image: sql-ai-agent-api:local
+    command: ["sql-agent-build-db", "--csv-dir", "/data/raw", "--output", "/data/db/boutique.db"]
+    volumes:
+      - ./data/raw:/data/raw:ro
+      - sqlite-data:/data/db
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  api:
+    build: *build
+    image: sql-ai-agent-api:local
+    env_file: .env
+    environment:
+      APP_ENV: local
+      # mode=ro : SQLite refuse toute écriture, même si le validateur laisse passer un bug
+      DATABASE_URL: "sqlite:///file:/data/db/boutique.db?mode=ro&uri=true"
+    volumes:
+      - sqlite-data:/data/db:ro          # 2e verrou : le volume lui-même est en lecture seule
+    ports:
+      - "8000:8000"
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+  ui:
+    build:
+      <<: *build
+      args:
+        UV_SYNC_ARGS: "--group ui"
+    image: sql-ai-agent-ui:local
+    command: ["streamlit", "run", "ui/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+    environment:
+      API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health', timeout=2)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  sqlite-data:

@@ -1,0 +1,383 @@
+# Offline evaluation questions for the SQL AI Agent
+# difficulty: easy | medium | hard
+# category: products | orders | customers | reviews | categories | cross
+# answerable: false = expects UNANSWERABLE response
+
+- id: "q001"
+  question: "Quels sont les 5 produits les plus chers ?"
+  difficulty: easy
+  category: products
+  answerable: true
+  reference_sql: >
+    SELECT nom, prix_unitaire FROM produits
+    ORDER BY prix_unitaire DESC LIMIT 5
+  expected_columns: ["nom", "prix_unitaire"]
+  expected_min_rows: 5
+
+- id: "q002"
+  question: "Combien de commandes ont été livrées ?"
+  difficulty: easy
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT COUNT(*) AS livrees FROM commandes WHERE statut = 'livree'
+  expected_min_rows: 1
+
+- id: "q003"
+  question: "Quelles sont les différentes catégories de produits ?"
+  difficulty: easy
+  category: categories
+  answerable: true
+  reference_sql: >
+    SELECT nom FROM categories ORDER BY nom
+  expected_min_rows: 1
+
+- id: "q004"
+  question: "Combien de clients ont passé au moins une commande ?"
+  difficulty: easy
+  category: customers
+  answerable: true
+  reference_sql: >
+    SELECT COUNT(DISTINCT client_id) AS clients_avec_commande FROM commandes
+  expected_min_rows: 1
+
+- id: "q005"
+  question: "Quel est le chiffre d'affaires total de la boutique ?"
+  difficulty: easy
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT ROUND(SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)), 2) AS ca_total
+    FROM lignes_commande lc
+    JOIN commandes c ON lc.commande_id = c.commande_id
+    WHERE c.statut IN ('livree', 'expediee')
+  expected_min_rows: 1
+
+- id: "q006"
+  question: "Quels sont les 3 clients qui ont dépensé le plus ?"
+  difficulty: medium
+  category: customers
+  answerable: true
+  reference_sql: >
+    SELECT cl.nom, cl.prenom,
+           ROUND(SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)), 2) AS total_depense
+    FROM clients cl
+    JOIN commandes c ON c.client_id = cl.client_id
+    JOIN lignes_commande lc ON lc.commande_id = c.commande_id
+    WHERE c.statut IN ('livree', 'expediee')
+    GROUP BY cl.client_id, cl.nom, cl.prenom
+    ORDER BY total_depense DESC
+    LIMIT 3
+  expected_columns: ["nom", "prenom", "total_depense"]
+  expected_min_rows: 1
+
+- id: "q007"
+  question: "Quels produits n'ont jamais été commandés ?"
+  difficulty: medium
+  category: products
+  answerable: true
+  reference_sql: >
+    SELECT p.nom FROM produits p
+    WHERE p.produit_id NOT IN (SELECT DISTINCT produit_id FROM lignes_commande)
+  expected_min_rows: 0
+
+- id: "q008"
+  question: "Quelle est la note moyenne des avis par catégorie de produit ?"
+  difficulty: medium
+  category: reviews
+  answerable: true
+  reference_sql: >
+    SELECT cat.nom AS categorie, ROUND(AVG(a.note), 2) AS note_moyenne
+    FROM avis a
+    JOIN produits p ON a.produit_id = p.produit_id
+    JOIN categories cat ON p.categorie_id = cat.categorie_id
+    GROUP BY cat.categorie_id, cat.nom
+    ORDER BY note_moyenne DESC
+  expected_columns: ["categorie", "note_moyenne"]
+  expected_min_rows: 1
+
+- id: "q009"
+  question: "Combien de commandes sont en cours de traitement ?"
+  difficulty: easy
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT COUNT(*) AS en_cours FROM commandes WHERE statut = 'expediee'
+  expected_min_rows: 1
+
+- id: "q010"
+  question: "Quel est le panier moyen des commandes livrées ?"
+  difficulty: medium
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT ROUND(AVG(total), 2) AS panier_moyen FROM (
+      SELECT c.commande_id, SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)) AS total
+      FROM commandes c
+      JOIN lignes_commande lc ON lc.commande_id = c.commande_id
+      WHERE c.statut IN ('livree', 'expediee')
+      GROUP BY c.commande_id
+    )
+  expected_min_rows: 1
+
+- id: "q011"
+  question: "Quels sont les 5 produits les plus vendus (en quantité) ?"
+  difficulty: medium
+  category: products
+  answerable: true
+  reference_sql: >
+    SELECT p.nom, SUM(lc.quantite) AS quantite_totale
+    FROM produits p
+    JOIN lignes_commande lc ON lc.produit_id = p.produit_id
+    GROUP BY p.produit_id, p.nom
+    ORDER BY quantite_totale DESC
+    LIMIT 5
+  expected_columns: ["nom", "quantite_totale"]
+  expected_min_rows: 1
+
+- id: "q012"
+  question: "Combien de clients se trouvent dans chaque ville ?"
+  difficulty: easy
+  category: customers
+  answerable: true
+  reference_sql: >
+    SELECT ville, COUNT(*) AS nb_clients
+    FROM clients
+    WHERE ville IS NOT NULL
+    GROUP BY ville
+    ORDER BY nb_clients DESC
+  expected_columns: ["ville", "nb_clients"]
+  expected_min_rows: 1
+
+- id: "q013"
+  question: "Quel est le produit avec la meilleure note moyenne et plus de 5 avis ?"
+  difficulty: hard
+  category: reviews
+  answerable: true
+  reference_sql: >
+    SELECT p.nom, ROUND(AVG(a.note), 2) AS note_moyenne, COUNT(a.avis_id) AS nb_avis
+    FROM produits p
+    JOIN avis a ON a.produit_id = p.produit_id
+    GROUP BY p.produit_id, p.nom
+    HAVING COUNT(a.avis_id) > 5
+    ORDER BY note_moyenne DESC
+    LIMIT 1
+  expected_min_rows: 0
+
+- id: "q014"
+  question: "Quelle est la répartition des commandes par mode de paiement ?"
+  difficulty: easy
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT mode_paiement, COUNT(*) AS nb_commandes
+    FROM commandes
+    GROUP BY mode_paiement
+    ORDER BY nb_commandes DESC
+  expected_columns: ["mode_paiement", "nb_commandes"]
+  expected_min_rows: 1
+
+- id: "q015"
+  question: "Quels clients n'ont pas encore passé de commande ?"
+  difficulty: medium
+  category: customers
+  answerable: true
+  reference_sql: >
+    SELECT nom, prenom, email FROM clients
+    WHERE client_id NOT IN (SELECT DISTINCT client_id FROM commandes)
+    LIMIT 20
+  expected_min_rows: 0
+
+- id: "q016"
+  question: "Quel est le mois avec le plus de commandes passées ?"
+  difficulty: hard
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT strftime('%Y-%m', date_commande) AS mois,
+           COUNT(*) AS nb_commandes
+    FROM commandes
+    GROUP BY mois
+    ORDER BY nb_commandes DESC
+    LIMIT 1
+  expected_min_rows: 1
+
+- id: "q017"
+  question: "Combien de produits sont en rupture de stock ?"
+  difficulty: easy
+  category: products
+  answerable: true
+  reference_sql: >
+    SELECT COUNT(*) AS ruptures FROM produits WHERE stock = 0
+  expected_min_rows: 1
+
+- id: "q018"
+  question: "Quelle catégorie génère le plus de chiffre d'affaires ?"
+  difficulty: hard
+  category: cross
+  answerable: true
+  reference_sql: >
+    SELECT cat.nom AS categorie,
+           ROUND(SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)), 2) AS ca
+    FROM categories cat
+    JOIN produits p ON p.categorie_id = cat.categorie_id
+    JOIN lignes_commande lc ON lc.produit_id = p.produit_id
+    JOIN commandes c ON lc.commande_id = c.commande_id
+    WHERE c.statut IN ('livree', 'expediee')
+    GROUP BY cat.categorie_id, cat.nom
+    ORDER BY ca DESC
+    LIMIT 1
+  expected_columns: ["categorie", "ca"]
+  expected_min_rows: 1
+
+- id: "q019"
+  question: "Quel est le taux de commandes annulées ?"
+  difficulty: medium
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT ROUND(
+      100.0 * SUM(CASE WHEN statut = 'annulee' THEN 1 ELSE 0 END) / COUNT(*),
+      2
+    ) AS taux_annulation
+    FROM commandes
+  expected_min_rows: 1
+
+- id: "q020"
+  question: "Quels sont les avis laissés par les clients qui ont commandé plus de 5 fois ?"
+  difficulty: hard
+  category: cross
+  answerable: true
+  reference_sql: >
+    SELECT cl.nom, cl.prenom, a.note, p.nom AS produit
+    FROM avis a
+    JOIN clients cl ON a.client_id = cl.client_id
+    JOIN produits p ON a.produit_id = p.produit_id
+    WHERE cl.client_id IN (
+      SELECT client_id FROM commandes
+      GROUP BY client_id
+      HAVING COUNT(*) > 5
+    )
+    LIMIT 20
+  expected_min_rows: 0
+
+- id: "q021"
+  question: "Quelle est la valeur totale du stock actuel ?"
+  difficulty: medium
+  category: products
+  answerable: true
+  reference_sql: >
+    SELECT ROUND(SUM(stock * prix_unitaire), 2) AS valeur_stock FROM produits
+  expected_min_rows: 1
+
+- id: "q022"
+  question: "Combien de produits différents ont été commandés au total ?"
+  difficulty: easy
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT COUNT(DISTINCT produit_id) AS nb_produits_distincts
+    FROM lignes_commande
+  expected_min_rows: 1
+
+- id: "q023"
+  question: "Quels sont les clients qui ont laissé uniquement des notes inférieures à 3 ?"
+  difficulty: hard
+  category: cross
+  answerable: true
+  reference_sql: >
+    SELECT cl.nom, cl.prenom
+    FROM clients cl
+    JOIN avis a ON a.client_id = cl.client_id
+    GROUP BY cl.client_id, cl.nom, cl.prenom
+    HAVING MAX(a.note) < 3
+  expected_min_rows: 0
+
+- id: "q024"
+  question: "Quels sont les 3 clients qui ont fait le plus de commandes ?"
+  difficulty: medium
+  category: customers
+  answerable: true
+  reference_sql: >
+    SELECT cl.nom, cl.prenom, COUNT(c.commande_id) AS nb_commandes
+    FROM clients cl
+    JOIN commandes c ON c.client_id = cl.client_id
+    GROUP BY cl.client_id, cl.nom, cl.prenom
+    ORDER BY nb_commandes DESC
+    LIMIT 3
+  expected_min_rows: 1
+
+- id: "q025"
+  question: "Combien de produits sont disponibles dans chaque catégorie ?"
+  difficulty: easy
+  category: cross
+  answerable: true
+  reference_sql: >
+    SELECT c.nom AS categorie, COUNT(*) AS nb_produits
+    FROM produits p
+    JOIN categories c ON p.categorie_id = c.categorie_id
+    WHERE p.actif = 1
+    GROUP BY c.categorie_id, c.nom
+    ORDER BY nb_produits DESC
+  expected_min_rows: 1
+
+- id: "q026"
+  question: "Quel est l'email du meilleur client ?"
+  difficulty: medium
+  category: customers
+  answerable: true
+  reference_sql: >
+    SELECT cl.email, ROUND(SUM(lc.quantite * lc.prix_unitaire_paye * (1 - c.remise_pct / 100.0)), 2) AS total
+    FROM clients cl
+    JOIN commandes c ON c.client_id = cl.client_id
+    JOIN lignes_commande lc ON lc.commande_id = c.commande_id
+    WHERE c.statut IN ('livree', 'expediee')
+    GROUP BY cl.client_id, cl.email
+    ORDER BY total DESC
+    LIMIT 1
+  expected_columns: ["email", "total"]
+  expected_min_rows: 1
+
+- id: "q027"
+  question: "Quel est le nombre moyen de produits par commande ?"
+  difficulty: medium
+  category: orders
+  answerable: true
+  reference_sql: >
+    SELECT ROUND(AVG(nb_produits), 2) AS moyenne FROM (
+      SELECT commande_id, COUNT(*) AS nb_produits
+      FROM lignes_commande
+      GROUP BY commande_id
+    )
+  expected_min_rows: 1
+
+- id: "q028"
+  question: "Quelle est la météo à Paris aujourd'hui ?"
+  difficulty: easy
+  category: cross
+  answerable: false
+
+- id: "q029"
+  question: "Quel client a laissé le dernier avis et quelle était sa note ?"
+  difficulty: medium
+  category: reviews
+  answerable: true
+  reference_sql: >
+    SELECT cl.nom, cl.prenom, a.note, a.date_avis
+    FROM avis a
+    JOIN clients cl ON a.client_id = cl.client_id
+    ORDER BY a.date_avis DESC
+    LIMIT 1
+  expected_min_rows: 1
+
+- id: "q030"
+  question: "Quels produits ont reçu à la fois une note de 5 et une note de 1 ?"
+  difficulty: hard
+  category: reviews
+  answerable: true
+  reference_sql: >
+    SELECT DISTINCT p.nom
+    FROM produits p
+    JOIN avis a1 ON a1.produit_id = p.produit_id AND a1.note = 5
+    JOIN avis a2 ON a2.produit_id = p.produit_id AND a2.note = 1
+  expected_min_rows: 0
