@@ -52,7 +52,11 @@ def run_question(
 
         if resp.status_code == 200:
             data = resp.json()
-            status = "success" if answerable else "unanswerable_wrong"
+            agent_unanswerable = bool(data.get("unanswerable"))
+            if agent_unanswerable:
+                status = "unanswerable_correct" if not answerable else "unanswerable_wrong"
+            else:
+                status = "success" if answerable else "unanswerable_wrong"
             return {
                 "id": question["id"],
                 "question": question["question"],
@@ -66,7 +70,7 @@ def run_question(
                 "attempts": data.get("attempts", 1),
                 "latency_ms": data.get("latency_ms", elapsed_ms),
                 "api_latency_ms": elapsed_ms,
-                "error": None,
+                "error": data.get("reason") if agent_unanswerable else None,
             }
         else:
             detail = resp.json().get("detail", resp.text) if resp.content else resp.text
@@ -206,7 +210,7 @@ def print_summary(metrics: dict[str, Any]) -> None:
     if metrics["errors"]:
         print(f"\nErrors ({len(metrics['errors'])}):")
         for err in metrics["errors"]:
-            print(f"  [{err['id']}] {err['status']}: {err.get('error', '')[:80]}")
+            print(f"  [{err['id']}] {err['status']}: {str(err.get('error') or '')[:80]}")
     print("=" * 60)
 
 
