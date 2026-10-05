@@ -35,47 +35,63 @@ Most text-to-SQL demos stop at "the LLM generated a query." This project treats 
 | Observability Dashboard | `http://localhost:8502` |
 | REST API (Swagger) | `http://localhost:8000/docs` |
 
-<!-- Screenshots -->
-> _Screenshots of the chat UI and observability dashboard below (added after deployment)._
+**Chat interface** — authorized question with complex CTE + multi-join SQL, and a blocked write attempt:
+
+![Chat UI — authorized and unauthorized queries](docs/agent_exemple_de_question_authorise_et_non_authorise.png)
+
+**Observability dashboard** — real-time KPI cards, latency breakdown by component, throughput time series:
+
+![Observability Dashboard](docs/dashboard_observabilite.png)
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     Client Layer                        │
-│   Streamlit Chat UI (:8501)   Observability UI (:8502)  │
-└────────────────────┬────────────────────────────────────┘
-                     │ HTTP
-┌────────────────────▼────────────────────────────────────┐
-│                  FastAPI  (:8000)                        │
-│  POST /v1/query   GET /v1/metrics   GET /health          │
-│  X-Request-ID propagation · JSON structured logging      │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│                   Agent Loop                             │
-│                                                          │
-│  ① Guardrails check (NeMo)                              │
-│       ↓ pass                                             │
-│  ② LLM call (ChatOpenAI-compatible)                     │
-│       ↓ SQL extracted                                    │
-│  ③ AST Validation (sqlglot)  ←──────────────┐           │
-│       ↓ pass                                 │ repair    │
-│  ④ Execution (read-only engine, timeout)     │           │
-│       ↓ error ───────────────────────────────┘           │
-│       ↓ success                                          │
-│  ⑤ Result returned + metrics recorded                   │
-└────────────────────┬────────────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────────────┐
-│               Data & Safety Layer                        │
-│  SQLite (local) / Azure SQL (prod)                       │
-│  • Connection: mode=ro + PRAGMA query_only=ON            │
-│  • Validator: SELECT-only, no CTEs with writes, LIMIT    │
-│  • Executor: per-query timeout + row cap                 │
-└─────────────────────────────────────────────────────────┘
+ ┌──────────────────────────────────────────────────────────────┐
+ │                        CLIENT LAYER                          │
+ │     Streamlit Chat UI (:8501)    Observability UI (:8502)    │
+ └─────────────────────────┬────────────────────────────────────┘
+                           │ HTTP  (X-Request-ID header)
+ ┌─────────────────────────▼────────────────────────────────────┐
+ │                    FastAPI REST API (:8000)                   │
+ │   POST /v1/query · GET /v1/metrics · GET /health             │
+ │   Structured JSON logs · Request-ID propagation              │
+ └─────────────────────────┬────────────────────────────────────┘
+                           │
+          ╔════════════════▼══════════════════════════╗
+          ║           GUARDRAILS  (NeMo 0.24)         ║  ← LAYER 0
+          ║  Colang policy: blocks destructive intent  ║
+          ║  "supprime la base" → BLOCKED immediately  ║
+          ╚════════════════╦══════════════════════════╝
+                    pass   ║   block → 422 response
+                           ║
+ ┌─────────────────────────▼────────────────────────────────────┐
+ │                  SELF-HEALING AGENT LOOP                      │
+ │                                                              │
+ │   ┌─────────────────────────────────────────────────────┐   │
+ │   │  ① LLM CALL  (any OpenAI-compatible provider)       │   │
+ │   │     System prompt = schema + values + skills        │   │
+ │   │     → raw SQL extracted from response               │   │
+ │   └──────────────────────┬──────────────────────────────┘   │
+ │                          │                                   │
+ │   ┌──────────────────────▼──────────────────────────────┐   │
+ │   │  ② AST VALIDATOR  (sqlglot)             LAYER 1     │   │ ←─────────────┐
+ │   │     SELECT-only · no DDL/DML · LIMIT enforced       │   │               │
+ │   │     rejects subquery writes, multi-statements       │   │   REPAIR LOOP │
+ │   └──────────────────────┬──────────────────────────────┘   │   (up to N    │
+ │                     pass │  fail ─────────────────────────────────────────► │
+ │   ┌──────────────────────▼──────────────────────────────┐   │   LLM gets:   │
+ │   │  ③ READ-ONLY EXECUTOR                   LAYER 2     │   │   • question  │
+ │   │     mode=ro + PRAGMA query_only=ON                  │   │   • failed SQL│
+ │   │     timeout + row cap enforced                      │   │   • error msg │
+ │   └──────────────────────┬──────────────────────────────┘   │               │
+ │                     pass │  fail ─────────────────────────────────────────► ┘
+ │                          │  (max_repairs exhausted → 422)
+ │   ┌──────────────────────▼──────────────────────────────┐   │
+ │   │  ④ RESULT + METRICS  recorded in MetricsStore       │   │
+ │   └─────────────────────────────────────────────────────┘   │
+ └──────────────────────────────────────────────────────────────┘
 ```
 
 ---
