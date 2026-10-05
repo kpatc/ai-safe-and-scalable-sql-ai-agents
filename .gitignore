@@ -13,3 +13,7 @@ evals/results/
 .env
 notebooks/*.ipynb
 !notebooks/.gitkeep
+
+# Internal project files
+CLAUDE.md
+ROADMAP.md
